@@ -9,6 +9,9 @@ import {
 import { Track } from './music/track';
 import { MusicSubscription } from './music/subscription';
 
+import English from "./lang/english";
+import German from "./lang/german";
+
 // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
 const { token } = require('../auth.json');
 
@@ -30,7 +33,7 @@ client.on('messageCreate', async (message) => {
 					{
 						name: 'song',
 						type: 'STRING' as const,
-						description: 'The URL of the song to play',
+						description: 'The YouTube URL of the song to play',
 						required: true,
 					},
 				],
@@ -55,9 +58,13 @@ client.on('messageCreate', async (message) => {
 				name: 'leave',
 				description: 'Leave the voice channel',
 			},
+			{
+				name: 'test',
+				description: 'test',
+			},
 		]);
 
-		await message.reply('Deployed!');
+		await message.reply(English.COMMANDS_DEPLOY_SUCCESS);
 	}
 });
 
@@ -72,7 +79,7 @@ client.on('interactionCreate', async (interaction: Interaction) => {
 	let subscription = subscriptions.get(interaction.guildId);
 
 	if (interaction.commandName === 'play') {
-		await interaction.defer();
+		await interaction.reply(English.COMMANDS_PLAY_BUSY)
 		// Extract the video URL from the command
 		const url = interaction.options.get('song')!.value! as string;
 
@@ -95,7 +102,7 @@ client.on('interactionCreate', async (interaction: Interaction) => {
 
 		// If there is no subscription, tell the user they need to join a channel.
 		if (!subscription) {
-			await interaction.followUp('Join a voice channel and then try that again!');
+			await interaction.followUp(English.ERRORS_SUBSCRIPTION_NONE);
 			return;
 		}
 
@@ -104,7 +111,7 @@ client.on('interactionCreate', async (interaction: Interaction) => {
 			await entersState(subscription.voiceConnection, VoiceConnectionStatus.Ready, 20e3);
 		} catch (error) {
 			console.warn(error);
-			await interaction.followUp('Failed to join voice channel within 20 seconds, please try again later!');
+			await interaction.followUp(English.ERRORS_SUBSCRIPTION_TIMEOUT);
 			return;
 		}
 
@@ -112,22 +119,22 @@ client.on('interactionCreate', async (interaction: Interaction) => {
 			// Attempt to create a Track from the user's video URL
 			const track = await Track.from(url, {
 				onStart() {
-					interaction.followUp({ content: 'Now playing!', ephemeral: true }).catch(console.warn);
+					interaction.followUp({ content: English.COMMANDS_PLAY_FOLLOWUP_START, ephemeral: true }).catch(console.warn);
 				},
 				onFinish() {
-					interaction.followUp({ content: 'Now finished!', ephemeral: true }).catch(console.warn);
+					interaction.followUp({ content: English.COMMANDS_PLAY_FOLLOWUP_END, ephemeral: true }).catch(console.warn);
 				},
 				onError(error) {
 					console.warn(error);
-					interaction.followUp({ content: `Error: ${error.message}`, ephemeral: true }).catch(console.warn);
+					interaction.followUp({ content: `${English.COMMANDS_PLAY_FOLLOWUP_ERROR}${error.message}`, ephemeral: true }).catch(console.warn);
 				},
 			});
 			// Enqueue the track and reply a success message to the user
 			subscription.enqueue(track);
-			await interaction.followUp(`Enqueued **${track.title}**`);
+			await interaction.followUp(`${English.COMMANDS_PLAY_DONE}**${track.title}**`);
 		} catch (error) {
 			console.warn(error);
-			await interaction.reply('Failed to play track, please try again later!');
+			await interaction.reply(English.COMMANDS_PLAY_ERROR);
 		}
 	} else if (interaction.commandName === 'skip') {
 		if (subscription) {
@@ -135,17 +142,17 @@ client.on('interactionCreate', async (interaction: Interaction) => {
 			// listener defined in music/subscription.ts, transitions into the Idle state mean the next track from the queue
 			// will be loaded and played.
 			subscription.audioPlayer.stop();
-			await interaction.reply('Skipped song!');
+			await interaction.reply(English.COMMANDS_SKIP_SUCCESS);
 		} else {
-			await interaction.reply('Not playing in this server!');
+			await interaction.reply(English.COMMANDS_SKIP_NOSUBSCRIPTION);
 		}
 	} else if (interaction.commandName === 'queue') {
 		// Print out the current queue, including up to the next 5 tracks to be played.
 		if (subscription) {
 			const current =
 				subscription.audioPlayer.state.status === AudioPlayerStatus.Idle
-					? `Nothing is currently playing!`
-					: `Playing **${(subscription.audioPlayer.state.resource as AudioResource<Track>).metadata.title}**`;
+					? English.COMMANDS_QUEUE_EMPTY
+					: `${English.COMMANDS_QUEUE_PLAYING}**${(subscription.audioPlayer.state.resource as AudioResource<Track>).metadata.title}**`;
 
 			const queue = subscription.queue
 				.slice(0, 5)
@@ -154,32 +161,32 @@ client.on('interactionCreate', async (interaction: Interaction) => {
 
 			await interaction.reply(`${current}\n\n${queue}`);
 		} else {
-			await interaction.reply('Not playing in this server!');
+			await interaction.reply(English.COMMANDS_QUEUE_NOSUBSCRIPTION);
 		}
 	} else if (interaction.commandName === 'pause') {
 		if (subscription) {
 			subscription.audioPlayer.pause();
-			await interaction.reply({ content: `Paused!`, ephemeral: true });
+			await interaction.reply({ content: English.COMMANDS_PAUSE_SUCCESS, ephemeral: true });
 		} else {
-			await interaction.reply('Not playing in this server!');
+			await interaction.reply(English.COMMANDS_PAUSE_NOSUBSCRIPTION);
 		}
 	} else if (interaction.commandName === 'resume') {
 		if (subscription) {
 			subscription.audioPlayer.unpause();
-			await interaction.reply({ content: `Unpaused!`, ephemeral: true });
+			await interaction.reply({ content: English.COMMANDS_RESUME_SUCCESS, ephemeral: true });
 		} else {
-			await interaction.reply('Not playing in this server!');
+			await interaction.reply(English.COMMANDS_RESUME_NOSUBSCRIPTION);
 		}
 	} else if (interaction.commandName === 'leave') {
 		if (subscription) {
 			subscription.voiceConnection.destroy();
 			subscriptions.delete(interaction.guildId);
-			await interaction.reply({ content: `Left channel!`, ephemeral: true });
+			await interaction.reply({ content: English.COMMANDS_LEAVE_SUCCESS, ephemeral: true });
 		} else {
-			await interaction.reply('Not playing in this server!');
+			await interaction.reply(English.COMMANDS_LEAVE_NOSUBSCRIPTION);
 		}
 	} else {
-		await interaction.reply('Unknown command');
+		await interaction.reply(English.ERRORS_INTERACTION_UNKNOWN);
 	}
 });
 

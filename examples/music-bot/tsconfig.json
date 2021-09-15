@@ -12,6 +12,6 @@
 			"tweetnacl": ["./node_modules/tweetnacl"]
 		}
 	},
-	"include": ["src/**/*.ts"],
+	"include": ["src/**/*.ts", "src/lang/language.ts"],
 	"exclude": [""]
 }
